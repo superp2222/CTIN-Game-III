@@ -73,6 +73,23 @@ public class InvestigationController : MonoBehaviour
     public AudioClip timeLowBeepSfx;
     public AudioClip timeUpSfx;
 
+    [Header("Background Art")]
+    public Image backgroundImage;
+
+    public Sprite initialHallwaySprite;
+    public Sprite hallwayEndSprite;
+
+    public Sprite doorASprite;
+    public Sprite doorBSprite;
+    public Sprite doorCSprite;
+    public Sprite doorDSprite;
+
+    public Sprite roomPlainSprite;
+    public Sprite roomBurningCrossSprite;
+    public Sprite roomOrbsSprite;
+    public Sprite roomDisheveledSprite;
+
+
     // -------------------------
     // Internal State
     // -------------------------
