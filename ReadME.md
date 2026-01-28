@@ -6,3 +6,6 @@ Given 4 rooms with clear cues + simple visual indicators, most first-time player
 
 # What would falsify it:
 If most playtesters fail (run out of time, use wrong tools repeatedly, or get lost), then the cues/UI/navigation aren’t clear enough.
+
+# Controls
+Use the mouse to move around and navigate the floor. Collect the evidence within the time given.
