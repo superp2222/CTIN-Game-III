@@ -64,6 +64,10 @@ public class InvestigationController : MonoBehaviour
     public float totalTimeSeconds = 120f;
     public float collectTimeSeconds = 5f;
 
+    [Header("Music")]
+    public AudioSource musicSource;
+    public AudioClip ostClip;
+
     [Header("Audio (Optional)")]
     public AudioSource sfxSource;            // for one-shots
     public AudioClip uiClickSfx;
@@ -97,8 +101,10 @@ public class InvestigationController : MonoBehaviour
     private RoomId currentRoom = RoomId.ElevatorExit;
 
     // Which door you're "facing" while in each hallway
-    private bool leftHallFacingA = true;   // false = facing B
-    private bool rightHallFacingC = true;  // false = facing D
+    // null = not selected yet (show hallwayEndSprite)
+    private bool? leftHallFacingA = null;   // true = A, false = B
+    private bool? rightHallFacingC = null;  // true = C, false = D
+
 
     // Robust backtracking: stack instead of single previousRoom
     private Stack<RoomId> history = new Stack<RoomId>();
@@ -115,6 +121,14 @@ public class InvestigationController : MonoBehaviour
     {
         // If you didn’t create an AudioSource yet, the script still works.
         if (feedbackText != null) feedbackText.text = "";
+
+        if (musicSource != null && ostClip != null)
+        {
+            musicSource.clip = ostClip;
+            musicSource.loop = true;
+            if (!musicSource.isPlaying) musicSource.Play();
+        }
+
 
         BuildRooms();
         timeRemaining = totalTimeSeconds;
@@ -183,8 +197,9 @@ public class InvestigationController : MonoBehaviour
         currentRoom = RoomId.ElevatorExit;
         history.Clear();
 
-        leftHallFacingA = true;
-        rightHallFacingC = true;
+        leftHallFacingA = null;
+        rightHallFacingC = null;
+
 
         collected.Clear();
         isCollecting = false;
@@ -193,6 +208,7 @@ public class InvestigationController : MonoBehaviour
         SetInteractable(true);
         UpdateRoomUI();
         UpdateTimerUI();
+        UpdateBackgroundVisual();
     }
 
     // If you add a Start button on your start panel,
@@ -252,7 +268,7 @@ public class InvestigationController : MonoBehaviour
         rooms[RoomId.RoomB] = new RoomData
         {
             id = RoomId.RoomB,
-            description = "This room is noticeably more disheveled than the others.\nDrawers ripped open. Furniture shifted.",
+            description = "This room is noticeably more disheveled than the others.\nSomething terrible happened here...",
             correctTool = ToolType.SpiritBox,
             evidenceName = "Spirit Box Response",
             canGoDown = true
@@ -328,7 +344,6 @@ public class InvestigationController : MonoBehaviour
                 return;
 
             case RoomId.HallwayLeft:
-                // Left/Right toggles facing door; Up enters it
                 if (dir == Direction.Left)
                 {
                     leftHallFacingA = true;
@@ -341,12 +356,19 @@ public class InvestigationController : MonoBehaviour
                 }
                 else if (dir == Direction.Up)
                 {
+                    if (!leftHallFacingA.HasValue)
+                    {
+                        SetFeedback("Choose a door (Left or Right) first.");
+                        return;
+                    }
+
                     history.Push(currentRoom);
-                    currentRoom = leftHallFacingA ? RoomId.RoomA : RoomId.RoomB;
+                    currentRoom = leftHallFacingA.Value ? RoomId.RoomA : RoomId.RoomB;
                     SetFeedback("Entering room...");
                 }
                 UpdateRoomUI();
                 return;
+
 
             case RoomId.HallwayRight:
                 if (dir == Direction.Left)
@@ -361,12 +383,19 @@ public class InvestigationController : MonoBehaviour
                 }
                 else if (dir == Direction.Up)
                 {
+                    if (!rightHallFacingC.HasValue)
+                    {
+                        SetFeedback("Choose a door (Left or Right) first.");
+                        return;
+                    }
+
                     history.Push(currentRoom);
-                    currentRoom = rightHallFacingC ? RoomId.RoomC : RoomId.RoomD;
+                    currentRoom = rightHallFacingC.Value ? RoomId.RoomC : RoomId.RoomD;
                     SetFeedback("Entering room...");
                 }
                 UpdateRoomUI();
                 return;
+
 
             case RoomId.RoomA:
             case RoomId.RoomB:
@@ -485,10 +514,18 @@ public class InvestigationController : MonoBehaviour
             string baseDesc = rooms[currentRoom].description;
 
             if (currentRoom == RoomId.HallwayLeft)
-                baseDesc += leftHallFacingA ? "\n\nSelected: Door A (Left)" : "\n\nSelected: Door B (Right)";
+            {
+                baseDesc += leftHallFacingA.HasValue
+                    ? (leftHallFacingA.Value ? "\n\nSelected: Door A (Left)" : "\n\nSelected: Door B (Right)")
+                    : "\n\nSelected: (none) — choose Left or Right.";
+            }
 
             if (currentRoom == RoomId.HallwayRight)
-                baseDesc += rightHallFacingC ? "\n\nSelected: Door C (Left)" : "\n\nSelected: Door D (Right)";
+            {
+                baseDesc += rightHallFacingC.HasValue
+                    ? (rightHallFacingC.Value ? "\n\nSelected: Door C (Left)" : "\n\nSelected: Door D (Right)")
+                    : "\n\nSelected: (none) — choose Left or Right.";
+            }
 
             roomDescriptionText.text = baseDesc;
         }
@@ -496,6 +533,7 @@ public class InvestigationController : MonoBehaviour
         // Timer UI separate
         UpdateArrowAvailability();
         UpdateToolButtonStates();
+        UpdateBackgroundVisual();
     }
 
     private void UpdateTimerUI()
@@ -527,7 +565,9 @@ public class InvestigationController : MonoBehaviour
             case RoomId.HallwayRight:
                 canLeft = true;   // select door
                 canRight = true;  // select door
-                canUp = true;     // enter selected
+                if (currentRoom == RoomId.HallwayLeft) canUp = leftHallFacingA.HasValue;
+                if (currentRoom == RoomId.HallwayRight) canUp = rightHallFacingC.HasValue;
+                // enter selected
                 canDown = true;   // back
                 break;
 
@@ -585,4 +625,45 @@ public class InvestigationController : MonoBehaviour
         if (sfxSource == null) return;
         sfxSource.PlayOneShot(clip);
     }
+    private void UpdateBackgroundVisual()
+    {
+        if (backgroundImage == null) return;
+
+        switch (currentRoom)
+        {
+            case RoomId.ElevatorExit:
+                backgroundImage.sprite = initialHallwaySprite;
+                break;
+
+            case RoomId.HallwayLeft:
+                backgroundImage.sprite = leftHallFacingA.HasValue
+                    ? (leftHallFacingA.Value ? doorASprite : doorBSprite)
+                    : hallwayEndSprite;
+                break;
+
+            case RoomId.HallwayRight:
+                backgroundImage.sprite = rightHallFacingC.HasValue
+                    ? (rightHallFacingC.Value ? doorCSprite : doorDSprite)
+                    : hallwayEndSprite;
+                break;
+
+
+            case RoomId.RoomA:
+                backgroundImage.sprite = roomBurningCrossSprite;
+                break;
+
+            case RoomId.RoomB:
+                backgroundImage.sprite = roomDisheveledSprite;
+                break;
+
+            case RoomId.RoomC:
+                backgroundImage.sprite = roomOrbsSprite;
+                break;
+
+            case RoomId.RoomD:
+                backgroundImage.sprite = roomPlainSprite;
+                break;
+        }
+    }
+
 }
